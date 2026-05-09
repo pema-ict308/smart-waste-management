@@ -2,18 +2,19 @@
 // HC-SR04 + LED Smart Bin System (Improved)
 // ===============================
 
-#define trigPin 9
-#define echoPin 10
+#define trigPin 7
+#define echoPin 6
 
-int redLED = 7;
-int yellowLED = 6;
-int greenLED = 5;
+int redLED = 13;
+int yellowLED = 12;
+int greenLED = 11;
 
 long duration;
 int distance;
 
 void setup() {
   Serial.begin(9600);
+  Serial.println("System Started");
 
   pinMode(trigPin, OUTPUT);
   pinMode(echoPin, INPUT);
@@ -39,9 +40,9 @@ void loop() {
 
   // If no reading
   if (duration == 0) {
-    Serial.println("No signal");
-    return;
-  }
+  Serial.println("No signal detected");
+  return;
+}
 
   // Convert to distance
   distance = duration * 0.034 / 2;
