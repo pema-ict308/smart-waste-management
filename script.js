@@ -4,25 +4,10 @@ let userProfile = {
     photo: "" 
 };
 
-let myBins = [
+let myBins = [];
     { id: 'BIN-101', type: 'General Waste', loc: 'Main Lobby', status: 'Normal', isFaulty: false, emergencyDate: null, emergencyMonth: null, faultDesc: "" },
     { id: 'BIN-104', type: 'Recycling', loc: 'Level 1 Hall', status: 'Normal', isFaulty: false, emergencyDate: null, emergencyMonth: null, faultDesc: "" },
     { id: 'BIN-105', type: 'General Waste', loc: 'Office A', status: 'Normal', isFaulty: false, emergencyDate: null, emergencyMonth: null, faultDesc: "" },
-    { id: 'BIN-106', type: 'Recycling', loc: 'Office B', status: 'Normal', isFaulty: false, emergencyDate: null, emergencyMonth: null, faultDesc: "" },
-    { id: 'BIN-107', type: 'General Waste', loc: 'Kitchen', status: 'Normal', isFaulty: false, emergencyDate: null, emergencyMonth: null, faultDesc: "" },
-    { id: 'BIN-108', type: 'Recycling', loc: 'Staff Lounge', status: 'Normal', isFaulty: false, emergencyDate: null, emergencyMonth: null, faultDesc: "" },
-    { id: 'BIN-109', type: 'General Waste', loc: 'Parking P1', status: 'Normal', isFaulty: false, emergencyDate: null, emergencyMonth: null, faultDesc: "" },
-    { id: 'BIN-110', type: 'Recycling', loc: 'Parking P2', status: 'Normal', isFaulty: false, emergencyDate: null, emergencyMonth: null, faultDesc: "" },
-    { id: 'BIN-111', type: 'General Waste', loc: 'Gym Entrance', status: 'Normal', isFaulty: false, emergencyDate: null, emergencyMonth: null, faultDesc: "" },
-    { id: 'BIN-112', type: 'Recycling', loc: 'Pool Area', status: 'Normal', isFaulty: false, emergencyDate: null, emergencyMonth: null, faultDesc: "" },
-    { id: 'BIN-201', type: 'General Waste', loc: 'Cafeteria', status: 'Warning', isFaulty: false, emergencyDate: null, emergencyMonth: null, faultDesc: "" },
-    { id: 'BIN-202', type: 'Recycling', loc: 'Library', status: 'Warning', isFaulty: false, emergencyDate: null, emergencyMonth: null, faultDesc: "" },
-    { id: 'BIN-203', type: 'General Waste', loc: 'East Exit', status: 'Warning', isFaulty: false, emergencyDate: null, emergencyMonth: null, faultDesc: "" },
-    { id: 'BIN-204', type: 'Recycling', loc: 'North Wing', status: 'Warning', isFaulty: false, emergencyDate: null, emergencyMonth: null, faultDesc: "" },
-    { id: 'BIN-301', type: 'Recycling', loc: 'Room 102', status: 'Critical', isFaulty: false, emergencyDate: null, emergencyMonth: null, faultDesc: "" },
-    { id: 'BIN-302', type: 'General Waste', loc: 'Loading Dock', status: 'Critical', isFaulty: false, emergencyDate: null, emergencyMonth: null, faultDesc: "" },
-    { id: 'BIN-303', type: 'General Waste', loc: 'West Wing', status: 'Critical', isFaulty: false, emergencyDate: null, emergencyMonth: null, faultDesc: "" },
-    { id: 'BIN-304', type: 'Recycling', loc: 'Basement', status: 'Critical', isFaulty: false, emergencyDate: null, emergencyMonth: null, faultDesc: "" }
 ];
 
 let currentViewDate = new Date();
@@ -278,10 +263,16 @@ function renderBins() {
             statusTxt = bin.status;
         }
         return `
-        <div class="card" style="display:flex; justify-content:space-between; align-items:center; border-left: 6px solid ${bin.isFaulty ? '#4b5563' : bin.status === 'Critical' ? 'red' : bin.status === 'Warning' ? 'orange' : 'green'};">
-            <div style="text-align:left;"><b>${bin.id}</b> (${bin.type})<br><small>${statusTxt}</small></div>
-            <div>${bin.isFaulty ? '🛠️' : '✅'}</div>
-        </div>`
+        <div class="card" style="display:flex; justify-content:space-between; align-items:center; border-left: 6px solid ${bin.isFaulty ? '#4b5563' : bin.status === 'Critical' ? 'red' : 'green'};">
+    <div style="text-align:left;">
+        <b>${bin.id}</b> (${bin.type})<br>
+        <small>${statusTxt}</small>
+    </div>
+    <div style="display:flex; gap:10px; align-items:center;">
+        <button onclick="deleteBin('${bin.id}')" style="background:none; border:none; cursor:pointer; font-size:16px;" title="Delete Bin">🗑️</button>
+        <span>${bin.isFaulty ? '🛠️' : '✅'}</span>
+    </div>
+</div>`
     }).join('');
 }
 
@@ -336,3 +327,48 @@ function generatePDFReport() {
 
 function changeMonth(offset) { currentViewDate.setMonth(currentViewDate.getMonth() + offset); renderCalendar(); }
 window.onload = () => showPage('login');
+
+function deleteBin(binId) {
+    if (confirm(`Are you sure you want to delete ${binId}?`)) {
+        myBins = myBins.filter(b => b.id !== binId);
+        
+        renderBins(); 
+        updateDash();
+    }
+function listenForLiveUpdates() {
+    const socket = new WebSocket('ws://192.168.1.100:81'); 
+
+    socket.onmessage = function(event) {
+        const data = JSON.parse(event.data); 
+        
+        let bin = myBins.find(b => b.id === data.binId);
+        
+        if(bin) {
+            bin.status = data.newStatus; 
+            bin.type = data.type; 
+            bin.loc = data.loc;
+        } else {
+            myBins.push({
+                id: data.binId,
+                type: data.type,
+                loc: data.loc,
+                status: data.newStatus,
+                isFaulty: false,
+                emergencyDate: null
+            });
+        }
+
+        updateDash(); 
+        if(document.getElementById('bin-list-container')) renderBins();
+        
+        if(data.newStatus === 'Critical') {
+            alert(`⚠️ CRITICAL ALERT: Bin ${data.binId} at ${data.loc} is FULL!`);
+        }
+    };
+}
+
+window.onload = () => {
+    showPage('login');
+    listenForLiveUpdates(); 
+};
+}
