@@ -5,10 +5,9 @@ let userProfile = {
 };
 
 let myBins = [];
-    { id: 'BIN-101', type: 'General Waste', loc: 'Main Lobby', status: 'Normal', isFaulty: false, emergencyDate: null, emergencyMonth: null, faultDesc: "" },
+  /*  { id: 'BIN-101', type: 'General Waste', loc: 'Main Lobby', status: 'Normal', isFaulty: false, emergencyDate: null, emergencyMonth: null, faultDesc: "" },
     { id: 'BIN-104', type: 'Recycling', loc: 'Level 1 Hall', status: 'Normal', isFaulty: false, emergencyDate: null, emergencyMonth: null, faultDesc: "" },
-    { id: 'BIN-105', type: 'General Waste', loc: 'Office A', status: 'Normal', isFaulty: false, emergencyDate: null, emergencyMonth: null, faultDesc: "" },
-];
+    { id: 'BIN-105', type: 'General Waste', loc: 'Office A', status: 'Normal', isFaulty: false, emergencyDate: null, emergencyMonth: null, faultDesc: "" },*/
 
 let currentViewDate = new Date();
 let activeResolveId = null; 
