@@ -39,6 +39,13 @@ const pages = {
     dashboard: `
         <div class="app-container">
             <h1 style="text-align:center;">Dashboard</h1>
+            <div class="card">
+    <h2>Live Firebase Data</h2>
+    <p>Bin ID: <span id="binId"></span></p>
+    <p>Distance: <span id="distance"></span></p>
+    <p>Status: <span id="status"></span></p>
+    <p>Location: <span id="location"></span></p>
+</div>
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin: 25px 0;">
                 <div class="status-badge status-green" id="d-total"></div>
                 <div class="status-badge status-yellow" id="d-warn"></div>
@@ -124,23 +131,34 @@ const pages = {
         </div>`
 };
 
-
 function showPage(pageId) {
     const view = document.getElementById('app-viewport');
-    document.getElementById('navbar').style.display = (pageId === 'login' || pageId === 'register') ? 'none' : 'flex';
+
+    document.getElementById('navbar').style.display =
+        (pageId === 'login' || pageId === 'register') ? 'none' : 'flex';
+
     view.innerHTML = pages[pageId];
 
-    if (pageId === 'dashboard') updateDash();
+    if (pageId === 'dashboard') {
+        updateDash();
+
+        if (window.updateFirebaseDisplay) {
+            window.updateFirebaseDisplay();
+        }
+    }
+
     if (pageId === 'bin') renderBins();
     if (pageId === 'schedule') renderCalendar();
     if (pageId === 'alert') renderAlerts('Critical');
     if (pageId === 'reportIssue') populateFaultSelect();
     if (pageId === 'insights') document.getElementById('ins-total').innerText = myBins.length;
+
     if (pageId === 'profile') {
         document.getElementById('prof-name').innerText = userProfile.name;
         document.getElementById('prof-email').innerText = userProfile.email;
     }
 }
+
 
 function handleRegistration() {
     const nameInput = document.getElementById('reg-name').value;
@@ -157,10 +175,17 @@ function handleRegistration() {
 }
 
 function updateDash() {
-    document.getElementById('d-total').innerText = `${myBins.length} Active`;
-    document.getElementById('d-warn').innerText = `${myBins.filter(b => b.status === 'Warning').length} Warning`;
-    document.getElementById('d-crit').innerText = `${myBins.filter(b => b.status === 'Critical').length} Critical`;
-    document.getElementById('d-faulty').innerText = `${myBins.filter(b => b.isFaulty).length} Faulty`;
+    document.getElementById('d-total').innerText =
+        `${myBins.filter(b => b.status === 'Normal').length} Normal`;
+
+    document.getElementById('d-warn').innerText =
+        `${myBins.filter(b => b.status === 'Warning').length} Warning`;
+
+    document.getElementById('d-crit').innerText =
+        `${myBins.filter(b => b.status === 'Critical').length} Critical`;
+
+    document.getElementById('d-faulty').innerText =
+        `${myBins.filter(b => b.isFaulty).length} Faulty`;
 }
 
 function submitFault() {
@@ -228,7 +253,7 @@ function renderAlerts(filter) {
 
 function renderResolvedList() {
     const tbody = document.getElementById('alert-table-body');
-    tbody.innerHTML = myBins.map(b => {
+    tbody.innerHTML = window.myBins.map(b => {
         let currentStatus = "";
         let actionBtn = "";
 
@@ -324,50 +349,18 @@ function generatePDFReport() {
     doc.save("Bin_Audit_Report.pdf");
 }
 
-function changeMonth(offset) { currentViewDate.setMonth(currentViewDate.getMonth() + offset); renderCalendar(); }
-window.onload = () => showPage('login');
+function changeMonth(offset) { currentViewDate.setMonth(currentViewDate.getMonth() + offset); renderCalendar(); 
+
+}
 
 function deleteBin(binId) {
     if (confirm(`Are you sure you want to delete ${binId}?`)) {
-        myBins = myBins.filter(b => b.id !== binId);
-        
+       window.myBins = window.myBins.filter(b => b.id !== binId);
         renderBins(); 
         updateDash();
     }
-function listenForLiveUpdates() {
-    const socket = new WebSocket('ws://192.168.1.100:81'); 
-
-    socket.onmessage = function(event) {
-        const data = JSON.parse(event.data); 
-        
-        let bin = myBins.find(b => b.id === data.binId);
-        
-        if(bin) {
-            bin.status = data.newStatus; 
-            bin.type = data.type; 
-            bin.loc = data.loc;
-        } else {
-            myBins.push({
-                id: data.binId,
-                type: data.type,
-                loc: data.loc,
-                status: data.newStatus,
-                isFaulty: false,
-                emergencyDate: null
-            });
-        }
-
-        updateDash(); 
-        if(document.getElementById('bin-list-container')) renderBins();
-        
-        if(data.newStatus === 'Critical') {
-            alert(`⚠️ CRITICAL ALERT: Bin ${data.binId} at ${data.loc} is FULL!`);
-        }
-    };
 }
 
 window.onload = () => {
     showPage('login');
-    listenForLiveUpdates(); 
 };
-}
