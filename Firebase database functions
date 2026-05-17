@@ -1,0 +1,5 @@
+saveBinToFirebase()
+deleteBinFromFirebase()
+registerUserToFirebase()
+loginUserFromFirebase()
+onValue() listeners
