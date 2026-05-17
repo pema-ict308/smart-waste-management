@@ -134,10 +134,10 @@ else {
 void sendToFirebase() {
 
   String jsonData = "{";
-  jsonData += "\"binId\":\"BIN-101\",";
-  jsonData += "\"distance\":" + String(distance) + ",";
-  jsonData += "\"status\":\"" + binStatus + "\",";
-  jsonData += "\"location\":\"Smart Bin\"";
+  jsonData += "\"binId\":\"BIN-101\",\n";
+  jsonData += "\"distance\":" + String(distance) + ",\n";
+  jsonData += "\"status\":\"" + binStatus + "\",\n";
+  jsonData += "\"location\":\"Room 101\"\n";
   jsonData += "}";
 
   Serial.println("Sending data to Firebase...");
