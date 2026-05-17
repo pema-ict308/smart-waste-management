@@ -18,5 +18,60 @@
     </nav>
     <div id="app-viewport"></div>
     <script src="script.js"></script>
+    
+    <Script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+        const firebaseConfig = {
+            databaseURL: "https://smart-bin-system-71b37-default-rtdb.firebaseio.com/"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const database = getDatabase(app);
+        const binRef = ref(database, "smartbin");
+
+        window.latestBinData = null;
+
+        window.updateFirebaseDisplay = function () {
+            const data = window.latestBinData;
+            if (!data) return;
+
+            const binId = document.getElementById("binId");
+            const distance = document.getElementById("distance");
+            const status = document.getElementById("status");
+            const location = document.getElementById("location");
+
+            if (binId && distance && status && location) {
+                binId.innerText = data.binId;
+                distance.innerText = data.distance + " cm";
+                status.innerText = data.status;
+                location.innerText = data.location;
+            }
+        };
+
+onValue(binRef, (snapshot) => {
+    const data = snapshot.val();
+
+    window.latestBinData = data;
+
+    myBins = [{
+        id: data.binId,
+        type: "General Waste",
+        loc: data.location,
+        status: data.status,
+        isFaulty: false
+    }];
+
+    if (window.updateFirebaseDisplay) {
+        window.updateFirebaseDisplay();
+    }
+
+    if (document.getElementById("d-total")) {
+        updateDash();
+    }
+});
+
+    </script>
 </body>
 </html>
