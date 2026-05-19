@@ -1,9 +1,11 @@
 <!DOCTYPE html>
+<html>
 <head>
     <title>Smart Waste Management System</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
+
 <body>
     <nav class="navbar" id="navbar" style="display: none;">
         <div class="logo">B</div>
@@ -16,12 +18,28 @@
             <a href="javascript:void(0)" onclick="showPage('profile')">Profile</a>
         </div>
     </nav>
+
     <div id="app-viewport"></div>
+
     <script src="script.js"></script>
-    
-    <Script type="module">
+
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+    <script>
+    emailjs.init("6aaRldPTJxUIv8yW1");
+</script>
+
+    <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+        import {
+            getDatabase,
+            ref,
+            onValue,
+            set,
+            push,
+            remove,
+            get,
+            child
+        } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
         const firebaseConfig = {
             databaseURL: "https://smart-bin-system-71b37-default-rtdb.firebaseio.com/"
@@ -29,49 +47,233 @@
 
         const app = initializeApp(firebaseConfig);
         const database = getDatabase(app);
-        const binRef = ref(database, "smartbin");
+
+        const liveBinRef = ref(database, "smartbin");
+        const binsRef = ref(database, "bins");
 
         window.latestBinData = null;
+        window.firebaseBins = [];
+
+        function rebuildBinList() {
+            const liveBin = window.latestBinData ? {
+                id: window.latestBinData.binId,
+                type: "General Waste",
+                loc: window.latestBinData.location,
+                status: window.latestBinData.status,
+                isFaulty: false
+            } : null;
+
+            const filteredFirebaseBins = window.firebaseBins.filter(bin =>
+                !liveBin || bin.id !== liveBin.id
+            );
+
+            myBins = liveBin
+                ? [liveBin, ...filteredFirebaseBins]
+                : filteredFirebaseBins;
+
+            if (document.getElementById("d-total")) {
+                updateDash();
+            }
+
+            if (document.getElementById("bin-list-container")) {
+                renderBins();
+            }
+
+            if (document.getElementById("alert-table-body")) {
+                renderResolvedList();
+            }
+        }
 
         window.updateFirebaseDisplay = function () {
-            const data = window.latestBinData;
-            if (!data) return;
 
-            const binId = document.getElementById("binId");
-            const distance = document.getElementById("distance");
-            const status = document.getElementById("status");
-            const location = document.getElementById("location");
+    const data = window.latestBinData;
 
-            if (binId && distance && status && location) {
-                binId.innerText = data.binId;
-                distance.innerText = data.distance + " cm";
-                status.innerText = data.status;
-                location.innerText = data.location;
+    if (!data) return;
+
+    const binId = document.getElementById("binId");
+    const distanceEl = document.getElementById("distance");
+    const statusEl = document.getElementById("status");
+    const locationEl = document.getElementById("location");
+
+    if (binId && distanceEl && statusEl && locationEl) {
+
+        // DISPLAY LIVE DATA
+        binId.innerText = data.binId;
+        distanceEl.innerText = data.distance + " cm";
+        locationEl.innerText = data.location;
+
+        // DETERMINE STATUS
+        let liveStatus = "Normal";
+
+        if (data.distance <= 10) {
+            liveStatus = "Critical";
+        }
+        else if (data.distance <= 20) {
+            liveStatus = "Warning";
+        }
+
+        statusEl.innerText = liveStatus;
+
+        // UPDATE BIN-101 IN ARRAY
+        let liveBin = myBins.find(b => b.id === data.binId);
+
+        if (liveBin) {
+
+            liveBin.status = liveStatus;
+
+        } else {
+
+            myBins.push({
+                id: data.binId,
+                type: "General Waste",
+                loc: data.location,
+                status: liveStatus,
+                isFaulty: false,
+                emergencyDate: null,
+                emergencyMonth: null,
+                faultDesc: ""
+            });
+        }
+
+        // REFRESH UI
+        updateDash();
+        renderBins();
+        renderAlerts();
+
+        // AUTO EMAIL ALERTS
+        if (
+            (liveStatus === "Critical" || liveStatus === "Warning") &&
+            lastAlertStatus !== liveStatus
+        ) {
+
+            console.log("AUTO EMAIL TRIGGERED");
+
+sendAlertEmail(liveStatus, data.distance);
+
+            lastAlertStatus = liveStatus;
+        }
+
+        // RESET ALERT SYSTEM
+        if (liveStatus === "Normal") {
+            lastAlertStatus = "";
+        }
+    }
+};
+
+        onValue(liveBinRef, (snapshot) => {
+            window.latestBinData = snapshot.val();
+
+            if (window.updateFirebaseDisplay) {
+                window.updateFirebaseDisplay();
             }
+
+            rebuildBinList();
+        });
+
+        onValue(binsRef, (snapshot) => {
+            const binsData = snapshot.val();
+
+            window.firebaseBins = binsData
+                ? Object.values(binsData).map(bin => ({
+                    id: bin.binId,
+                    type: bin.type,
+                    loc: bin.location,
+                    status: bin.status,
+                    isFaulty: bin.isFaulty || false
+                }))
+                : [];
+
+            rebuildBinList();
+        });
+
+        window.saveBinToFirebase = function () {
+            const id = document.getElementById("n-id").value.trim();
+            const type = document.getElementById("n-type").value;
+            const location = document.getElementById("n-loc").value.trim();
+
+            if (!id || !location) {
+                alert("Enter Bin ID and location");
+                return;
+            }
+
+            const newBinRef = push(ref(database, "bins"));
+
+            set(newBinRef, {
+                binId: id,
+                type: type,
+                location: location,
+                status: "Normal",
+                distance: 0,
+                isFaulty: false
+            });
+
+            alert("Bin saved to Firebase!");
+            showPage("bin");
         };
 
-onValue(binRef, (snapshot) => {
-    const data = snapshot.val();
+        window.deleteBinFromFirebase = function (binId) {
+            get(child(ref(database), "bins")).then((snapshot) => {
+                const binsData = snapshot.val();
 
-    window.latestBinData = data;
+                if (!binsData) return;
 
-    myBins = [{
-        id: data.binId,
-        type: "General Waste",
-        loc: data.location,
-        status: data.status,
-        isFaulty: false
-    }];
+                Object.keys(binsData).forEach((key) => {
+                    if (binsData[key].binId === binId) {
+                        remove(ref(database, "bins/" + key));
+                    }
+                });
+            });
+        };
 
-    if (window.updateFirebaseDisplay) {
-        window.updateFirebaseDisplay();
-    }
+        window.registerUserToFirebase = function () {
+            const name = document.getElementById("reg-name").value.trim();
+            const email = document.getElementById("reg-email").value.trim();
+            const password = document.getElementById("reg-pass").value.trim();
 
-    if (document.getElementById("d-total")) {
-        updateDash();
-    }
-});
+            if (!name || !email || !password) {
+                alert("Please fill in all fields.");
+                return;
+            }
 
+            const userId = email.replaceAll(".", "_");
+
+            set(ref(database, "users/" + userId), {
+                name: name,
+                email: email,
+                password: password
+            });
+
+            alert("Registration successful!");
+            showPage("login");
+        };
+
+        window.loginUserFromFirebase = function () {
+            const email = document.getElementById("login-email").value.trim();
+            const password = document.getElementById("login-pass").value.trim();
+
+            if (!email || !password) {
+                alert("Please enter email and password.");
+                return;
+            }
+
+            const userId = email.replaceAll(".", "_");
+
+            get(child(ref(database), "users/" + userId)).then((snapshot) => {
+                if (snapshot.exists()) {
+                    const user = snapshot.val();
+
+                    if (user.password === password) {
+                        userProfile.name = user.name;
+                        userProfile.email = user.email;
+                        showPage("dashboard");
+                    } else {
+                        alert("Incorrect password.");
+                    }
+                } else {
+                    alert("User not found. Please register first.");
+                }
+            });
+        };
     </script>
 </body>
 </html>
