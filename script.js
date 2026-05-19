@@ -3,6 +3,28 @@ let userProfile = {
     email: "demo@wastemanagement.com",
     photo: "" 
 };
+let lastAlertStatus = "";
+
+
+function sendEmailAlert(bin) {
+
+    emailjs.send(
+        "service_9hskc3m",
+        "template_j0vqz3u",
+        {
+            bin_id: bin.id,
+            location: bin.loc,
+            status: bin.isFaulty ? "Faulty" : bin.status,
+            message: `${bin.id} at ${bin.loc} requires immediate attention.`
+        }
+    )
+    .then(() => {
+        console.log("Email sent!");
+    })
+    .catch((error) => {
+        console.log(error);
+    });
+}
 
 let myBins = [];
   /*  { id: 'BIN-101', type: 'General Waste', loc: 'Main Lobby', status: 'Normal', isFaulty: false, emergencyDate: null, emergencyMonth: null, faultDesc: "" },
@@ -17,9 +39,9 @@ const pages = {
         <div class="auth-wrapper" style="background: url('bg2login.jpg') no-repeat center center; background-size: cover;">
             <div class="auth-card">
                 <h1>Login</h1>
-                <input type="text" placeholder="Username" class="form-input">
-                <input type="password" placeholder="Password" class="form-input">
-                <button class="btn-main btn-primary-green" style="width:100%" onclick="showPage('dashboard')">Sign In</button>
+               <input type="text" id="login-email" placeholder="Email" class="form-input">
+<input type="password" id="login-pass" placeholder="Password" class="form-input">
+                <button class="btn-main btn-primary-green" style="width:100%" onclick="handleLogin()">Sign In</button>
                 <p style="text-align:center; margin-top:15px;">New? <a href="#" onclick="showPage('register')">Register</a></p>
             </div>
         </div>`,
@@ -68,21 +90,33 @@ const pages = {
         </div>`,
 
     alert: `
-        <div class="app-container">
-            <h1>Alerts & Scheduling</h1>
-            <div style="display:flex; gap:10px; margin-bottom:20px;">
-                <button class="status-badge status-red" onclick="renderAlerts('Critical')">Critical</button>
-                <button class="status-badge status-yellow" onclick="renderAlerts('Warning')">Warning</button>
-                <button class="status-badge status-green" onclick="renderResolvedList()">All Bins</button>
-            </div>
-            <div class="card" style="padding:0;">
-                <table style="width:100%; border-collapse:collapse; font-size:13px;">
-                    <thead style="background:#f9fafb;"><tr style="text-align:left;"><th style="padding:12px;">ID</th><th>Loc</th><th>Status</th><th>Action</th></tr></thead>
-                    <tbody id="alert-table-body"></tbody>
-                </table>
-            </div>
-        </div>`,
+<div class="app-container">
 
+    <h1>Alerts & Scheduling</h1>
+
+    <div class="card" style="padding:0;">
+
+        <table style="width:100%; border-collapse:collapse; font-size:13px;">
+
+            <thead style="background:#f9fafb;">
+                <tr style="text-align:left;">
+
+                    <th style="padding:12px;">ID</th>
+                    <th>Loc</th>
+                    <th>Status</th>
+                    <th>Action</th>
+
+                </tr>
+            </thead>
+
+            <tbody id="alert-table-body"></tbody>
+
+        </table>
+
+    </div>
+
+</div>
+`,
     schedule: `
         <div class="app-container">
             <h1>Service Calendar</h1>
@@ -104,6 +138,9 @@ const pages = {
         <div class="app-container">
             <h1>New Bin</h1>
             <div class="card">
+            <label>Bin ID</label>
+<input type="text" id="n-id" class="form-input" placeholder="BIN-102">
+
                 <label>Waste Category</label>
                 <select id="n-type" class="form-input">
                     <option value="General Waste">General Waste</option>
@@ -142,9 +179,7 @@ function showPage(pageId) {
     if (pageId === 'dashboard') {
         updateDash();
 
-        if (window.updateFirebaseDisplay) {
-            window.updateFirebaseDisplay();
-        }
+    
     }
 
     if (pageId === 'bin') renderBins();
@@ -159,20 +194,22 @@ function showPage(pageId) {
     }
 }
 
-
 function handleRegistration() {
-    const nameInput = document.getElementById('reg-name').value;
-    const emailInput = document.getElementById('reg-email').value;
-
-    if (nameInput && emailInput) {
-        userProfile.name = nameInput;
-        userProfile.email = emailInput;
-        alert("Registration successful!");
-        showPage('login');
+    if (window.registerUserToFirebase) {
+        window.registerUserToFirebase();
     } else {
-        alert("Please fill in all fields.");
+        alert("Firebase is not ready yet.");
     }
 }
+
+function handleLogin() {
+    if (window.loginUserFromFirebase) {
+        window.loginUserFromFirebase();
+    } else {
+        alert("Firebase is not ready yet.");
+    }
+}
+
 
 function updateDash() {
     document.getElementById('d-total').innerText =
@@ -189,12 +226,46 @@ function updateDash() {
 }
 
 function submitFault() {
-    const binId = document.getElementById('fault-bin-select').value;
-    const bin = myBins.find(b => b.id === binId);
-    if(bin) { 
-        bin.isFaulty = true; 
-        bin.faultDesc = document.getElementById('fault-desc').value;
-        showPage('dashboard');
+
+    const binId =
+        document.getElementById('fault-bin-select').value;
+
+    const faultDesc =
+        document.getElementById('fault-desc').value;
+
+    const bin =
+        myBins.find(b => b.id === binId);
+
+    if (bin) {
+
+        // LOCAL UPDATE
+        bin.isFaulty = true;
+        bin.status = "Faulty";
+        bin.faultDesc = faultDesc;
+
+        // SEND TO FIREBASE
+        if (window.firebaseDB) {
+
+            window.firebaseDB
+                .ref("smartbin")
+                .update({
+
+                    binId: bin.id,
+                    location: bin.loc,
+                    status: "Faulty",
+                    isFaulty: true,
+                    faultDetail: faultDesc
+
+                });
+        }
+
+        alert("⚠️ Fault report submitted successfully!");
+
+        // REFRESH UI
+        renderBins();
+        renderAlerts();
+
+        showPage('alert');
     }
 }
 
@@ -240,44 +311,147 @@ function renderCalendar() {
     }
 }
 
-function renderAlerts(filter) {
+function renderAlerts() {
+
     const tbody = document.getElementById('alert-table-body');
-    tbody.innerHTML = myBins.filter(b => b.status === filter).map(b => `
-        <tr style="border-bottom:1px solid #eee;">
-            <td style="padding:15px; font-weight:600;">${b.id}</td>
-            <td>${b.loc}</td>
-            <td style="color:red">${b.status}</td>
-            <td><button class="btn-main" style="padding:5px 10px; background:#6b7280; font-size:11px;" onclick="startResolve('${b.id}')">Schedule Now</button></td>
-        </tr>`).join('');
+
+    const sortedBins = [...myBins].sort((a, b) => {
+
+        const priority = {
+            "Critical": 1,
+            "Warning": 2,
+            "Normal": 3
+        };
+
+        return priority[a.status] - priority[b.status];
+    });
+
+    tbody.innerHTML = sortedBins.map(bin => `
+
+        <tr>
+
+            <td style="padding:12px;">
+                <b>${bin.id}</b>
+            </td>
+
+            <td>${bin.loc}</td>
+
+            <td style="font-weight:bold; color:${
+    bin.emergencyDate
+        ? '#3b82f6'
+        : bin.status === 'Critical'
+        ? 'red'
+        : bin.status === 'Warning'
+        ? '#facc15'
+        : 'green'
+};">
+    ${
+    bin.isFaulty
+        ? 'Faulty'
+        : bin.emergencyDate
+        ? 'Scheduled'
+        : bin.status
+}
+</td>
+
+            <td>
+                ${
+    bin.emergencyDate
+        ? '<span style="color:#3b82f6; font-weight:bold;">Scheduled</span>'
+
+        : (bin.status !== "Normal" || bin.isFaulty)
+
+        ? `<button class="btn-small"
+            onclick="startResolve('${bin.id}')">
+            Schedule Now
+        </button>`
+
+        : 'No action needed'
+}
+            </td>
+
+        </tr>
+
+    `).join('');
 }
 
 function renderResolvedList() {
+
     const tbody = document.getElementById('alert-table-body');
-    tbody.innerHTML = window.myBins.map(b => {
+
+    // STOP ERRORS
+    if (!tbody) return;
+
+    const safeBins = window.myBins || [];
+
+    tbody.innerHTML = safeBins.map(b => {
+
         let currentStatus = "";
         let actionBtn = "";
 
         if (b.isFaulty && b.emergencyDate) {
+
             currentStatus = '<span style="color:#d97706">Bin fix scheduled</span>';
+
         } else if (b.isFaulty) {
+
             currentStatus = '<span style="color:red">Faulty (Needs Fix)</span>';
-            actionBtn = `<button class="btn-main" style="padding:5px 10px; background:#6b7280; font-size:11px;" onclick="startResolve('${b.id}')">Schedule Fix</button>`;
+
+            actionBtn =
+                `<button class="btn-main"
+                    style="padding:5px 10px; background:#6b7280; font-size:11px;"
+                    onclick="startResolve('${b.id}')">
+                    Schedule Fix
+                </button>`;
+
         } else if (b.emergencyDate) {
+
             currentStatus = '✅ Pick up scheduled';
+
         } else if (b.status === 'Normal') {
-            currentStatus = b.type === 'General Waste' ? 'General waste collection' : 'Recycle bin collection';
+
+            currentStatus =
+                b.type === 'General Waste'
+                ? 'General waste collection'
+                : 'Recycle bin collection';
+
         } else {
-            currentStatus = `<span style="color:red">Needs Scheduling (${b.status})</span>`;
-            actionBtn = `<button class="btn-main" style="padding:5px 10px; background:#6b7280; font-size:11px;" onclick="startResolve('${b.id}')">Schedule</button>`;
+
+            currentStatus =
+                `<span style="color:red">
+                    Needs Scheduling (${b.status})
+                </span>`;
+
+            actionBtn =
+                `<button class="btn-main"
+                    style="padding:5px 10px; background:#6b7280; font-size:11px;"
+                    onclick="startResolve('${b.id}')">
+                    Schedule
+                </button>`;
         }
 
-        return `<tr style="border-bottom:1px solid #eee;"><td style="padding:15px; font-weight:600;">${b.id}</td><td>${b.loc}</td><td>${currentStatus}</td><td>${actionBtn}</td></tr>`
+        return `
+            <tr style="border-bottom:1px solid #eee;">
+                <td style="padding:15px; font-weight:600;">
+                    ${b.id}
+                </td>
+
+                <td>${b.loc}</td>
+
+                <td>${currentStatus}</td>
+
+                <td>${actionBtn}</td>
+            </tr>
+        `;
+
     }).join('');
 }
 
 function renderBins() {
-    const cont = document.getElementById('bin-list-container');
-    cont.innerHTML = myBins.map(bin => {
+    const container = document.getElementById("bin-list-container");
+
+if (!container) return;
+    container.innerHTML = myBins.map(bin => {
         let statusTxt = "";
         if (bin.isFaulty) {
             statusTxt = bin.emergencyDate ? "Bin fix scheduled" : "Faulty";
@@ -287,10 +461,24 @@ function renderBins() {
             statusTxt = bin.status;
         }
         return `
-        <div class="card" style="display:flex; justify-content:space-between; align-items:center; border-left: 6px solid ${bin.isFaulty ? '#4b5563' : bin.status === 'Critical' ? 'red' : 'green'};">
+        <div class="card" style="display:flex; justify-content:space-between; align-items:center; 
+      border-left: 6px solid ${
+   bin.isFaulty
+    ? '#111827'
+    : bin.emergencyDate
+    ? '#3b82f6'
+    : bin.status === 'Critical'
+    ? 'red'
+    : bin.status === 'Warning'
+    ? '#facc15'
+    : 'green'
+};
     <div style="text-align:left;">
         <b>${bin.id}</b> (${bin.type})<br>
-        <small>${statusTxt}</small>
+        <small>
+    ${statusTxt}<br>
+    <b>Location:</b> ${bin.loc}
+</small>
     </div>
     <div style="display:flex; gap:10px; align-items:center;">
         <button onclick="deleteBin('${bin.id}')" style="background:none; border:none; cursor:pointer; font-size:16px;" title="Delete Bin">🗑️</button>
@@ -300,13 +488,24 @@ function renderBins() {
     }).join('');
 }
 
-function startResolve(id) { activeResolveId = id; showPage('schedule'); document.getElementById('resolve-hint').style.display='block'; }
+function startResolve(id) {
+    activeResolveId = id;
+    showPage('schedule');
+
+    setTimeout(() => {
+        const hint = document.getElementById('resolve-hint');
+        if (hint) hint.style.display = 'block';
+    }, 100);
+}
+
 function populateFaultSelect() { const sel = document.getElementById('fault-bin-select'); if(sel) sel.innerHTML = myBins.map(b => `<option value="${b.id}">${b.id} - ${b.loc}</option>`).join(''); }
-function saveBin() { 
-    const type = document.getElementById('n-type').value;
-    const loc = document.getElementById('n-loc').value;
-    myBins.push({ id: 'BIN-'+(100+myBins.length+1), type, loc, status: 'Normal', isFaulty: false, emergencyDate: null, emergencyMonth: null, faultDesc: "" });
-    showPage('bin');
+
+function saveBin() {
+    if (window.saveBinToFirebase) {
+        window.saveBinToFirebase();
+    } else {
+        alert("Firebase is not ready yet");
+    }
 }
 
 function generatePDFReport() {
@@ -355,12 +554,40 @@ function changeMonth(offset) { currentViewDate.setMonth(currentViewDate.getMonth
 
 function deleteBin(binId) {
     if (confirm(`Are you sure you want to delete ${binId}?`)) {
-       window.myBins = window.myBins.filter(b => b.id !== binId);
-        renderBins(); 
+
+        if (binId === "BIN-101") {
+            alert("BIN-101 is the live Arduino bin. It cannot be deleted unless Arduino/Firebase live data is removed.");
+            return;
+        }
+
+        if (window.deleteBinFromFirebase) {
+            window.deleteBinFromFirebase(binId);
+        }
+
+        myBins = myBins.filter(b => b.id !== binId);
+        renderBins();
         updateDash();
     }
 }
 
 window.onload = () => {
     showPage('login');
+
+    // ===============================
+// LIVE FIREBASE LISTENER
+// ===============================
+
+if (window.binRef && window.onValue) {
+
+    onValue(binRef, (snapshot) => {
+
+        const data = snapshot.val();
+
+        if (data) {
+            window.updateFirebaseDisplay(data);
+        }
+
+    });
+
+}
 };
