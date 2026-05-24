@@ -315,6 +315,9 @@ function renderAlerts() {
 
     const tbody = document.getElementById('alert-table-body');
 
+    // Prevent crash if alert table doesn't exist
+if (!tbody) return;
+
     const sortedBins = [...myBins].sort((a, b) => {
 
         const priority = {
@@ -584,8 +587,31 @@ if (window.binRef && window.onValue) {
         const data = snapshot.val();
 
         if (data) {
-            window.updateFirebaseDisplay(data);
-        }
+
+    window.updateFirebaseDisplay(data);
+
+    // ===============================
+    // AUTO EMAIL ALERT
+    // ===============================
+
+    if (
+        (data.status === "Critical" ||
+         data.status === "Warning" ||
+         data.status === "Faulty")
+
+        && lastAlertStatus !== data.status
+    ) {
+
+        sendEmailAlert({
+            id: data.binId,
+            loc: data.location,
+            status: data.status,
+            isFaulty: data.status === "Faulty"
+        });
+
+        lastAlertStatus = data.status;
+    }
+}
 
     });
 
